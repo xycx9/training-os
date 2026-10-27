@@ -1,0 +1,187 @@
+import { useState } from 'react';
+import { useAdmin } from '../../lib/data';
+import { fmt, fmtH, tempPassword, todayMY } from '../../lib/logic';
+import { adminUsers, errText, rpc } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth';
+import type { Profile } from '../../lib/types';
+import { useToast } from '../../components/Toast';
+
+const JOB_ROLES = ['Counter staff', 'Compliance officer', 'Manager', 'New joiner'];
+
+interface NewStaff { full_name: string; username: string; role: 'staff' | 'admin'; job_role: string; joined_on: string; password: string; mods: string[]; due_days: number }
+
+function Credentials({ name, username, password, onClose }: { name: string; username: string; password: string; onClose: () => void }) {
+  const toast = useToast();
+  const text = `Training OS sign-in for ${name}\nUsername: ${username}\nTemporary password: ${password}\nYou will be asked to choose your own password.`;
+  return (
+    <section className="panel pad stack" style={{ borderColor: 'var(--accent)' }} aria-live="polite">
+      <h2>Give these details to {name}</h2>
+      <div className="note mono" style={{ whiteSpace: 'pre-wrap', fontSize: 14 }}>{`Username: ${username}\nTemporary password: ${password}`}</div>
+      <p className="small muted">They choose their own password the first time they sign in. This temporary password is not shown again.</p>
+      <div className="row">
+        <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(text).then(() => toast('Copied'), () => toast('Select the text and copy it', true))}>Copy</button>
+        <button type="button" className="btn primary" onClick={onClose}>Done</button>
+      </div>
+    </section>
+  );
+}
+
+export default function Staff() {
+  const { data, ledger, reload } = useAdmin();
+  const { profile: me } = useAuth();
+  const toast = useToast();
+  const [n, setN] = useState<NewStaff | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [creds, setCreds] = useState<{ name: string; username: string; password: string } | null>(null);
+  const [resetFor, setResetFor] = useState<Profile | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
+  if (!data || !ledger) return null;
+  const published = ledger.published();
+
+  const startAdd = () => { setErr(null); setCreds(null); setN({ full_name: '', username: '', role: 'staff', job_role: 'Counter staff', joined_on: todayMY(), password: tempPassword(), mods: published.map((m) => m.id), due_days: 14 }); };
+  const suggestUser = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 32);
+
+  const create = async () => {
+    if (!n) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await adminUsers({ action: 'create', ...n, module_ids: n.role === 'staff' ? n.mods : [] });
+      if (res.warning) toast(res.warning, true);
+      setCreds({ name: n.full_name, username: n.username, password: n.password });
+      setN(null);
+      await reload();
+    } catch (e) { setErr(errText(e)); }
+    finally { setBusy(false); }
+  };
+
+  const people = data.people.filter((p) => showInactive || p.active);
+  const inactiveCount = data.people.filter((p) => !p.active).length;
+
+  return (
+    <>
+      <div className="spread">
+        <div><h1>Staff</h1><p className="muted small" style={{ marginTop: 4 }}>Create sign-ins, add new joiners and make sure everyone has every module they need.</p></div>
+        {!n && <button type="button" className="btn primary" onClick={startAdd}>+ Add staff</button>}
+      </div>
+
+      {creds && <Credentials {...creds} onClose={() => setCreds(null)} />}
+
+      {n && (
+        <section className="panel pad stack" aria-label="Add staff">
+          <h2>Add staff</h2>
+          <div className="grid-fields">
+            <label className="field" htmlFor="ns-name">Full name
+              <input id="ns-name" value={n.full_name} onChange={(e) => setN({ ...n, full_name: e.target.value, username: n.username && n.username !== suggestUser(n.full_name) ? n.username : suggestUser(e.target.value) })} /></label>
+            <label className="field" htmlFor="ns-user">Username
+              <input id="ns-user" autoCapitalize="none" spellCheck={false} value={n.username} onChange={(e) => setN({ ...n, username: e.target.value.toLowerCase().replace(/\s+/g, '') })} /></label>
+            <label className="field" htmlFor="ns-type">Account type
+              <select id="ns-type" value={n.role} onChange={(e) => setN({ ...n, role: e.target.value as 'staff' | 'admin' })}><option value="staff">Staff (takes training)</option><option value="admin">Admin (manages training)</option></select></label>
+            {n.role === 'staff' && <label className="field" htmlFor="ns-role">Job role
+              <select id="ns-role" value={n.job_role} onChange={(e) => setN({ ...n, job_role: e.target.value })}>{JOB_ROLES.map((r) => <option key={r}>{r}</option>)}</select></label>}
+            <label className="field" htmlFor="ns-joined">Joined on<input id="ns-joined" type="date" value={n.joined_on} onChange={(e) => setN({ ...n, joined_on: e.target.value })} /></label>
+            <label className="field" htmlFor="ns-pass">Temporary password
+              <span className="row" style={{ flexWrap: 'nowrap' }}><input id="ns-pass" className="mono" style={{ flex: 1 }} value={n.password} onChange={(e) => setN({ ...n, password: e.target.value })} />
+                <button type="button" className="btn slim" onClick={() => setN({ ...n, password: tempPassword() })}>New</button></span></label>
+          </div>
+          <p className="small muted">Usernames use lowercase letters, numbers, dots or dashes. Nobody needs an email address.</p>
+          {n.role === 'staff' && (
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="spread" style={{ alignItems: 'center' }}><h3>Training to assign</h3>
+                <div className="row"><button type="button" className="btn slim" onClick={() => setN({ ...n, mods: published.map((m) => m.id) })}>Select all</button><button type="button" className="btn slim" onClick={() => setN({ ...n, mods: [] })}>Clear</button></div></div>
+              <p className="small muted">Every published module is selected, so a new joiner catches up on training the rest of the team has already completed.</p>
+              {published.length === 0 && <p className="small muted">No published modules yet.</p>}
+              <div className="stack" style={{ gap: 0 }}>
+                {published.map((m) => (
+                  <label key={m.id} className="check" htmlFor={`ns-${m.id}`}>
+                    <input type="checkbox" id={`ns-${m.id}`} checked={n.mods.includes(m.id)} onChange={(e) => setN({ ...n, mods: e.target.checked ? n.mods.concat(m.id) : n.mods.filter((x) => x !== m.id) })} />
+                    <span>{m.title} <span className="small muted">· {fmtH(m.duration_hours)}</span></span>
+                  </label>
+                ))}
+              </div>
+              <label className="field" htmlFor="ns-due" style={{ width: 200 }}>Complete within (days)<input id="ns-due" type="number" min={1} max={365} value={n.due_days} onChange={(e) => setN({ ...n, due_days: Math.max(1, Math.min(365, Number(e.target.value) || 14)) })} /></label>
+            </div>
+          )}
+          {err && <div className="err" role="alert">{err}</div>}
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn" onClick={() => setN(null)}>Cancel</button>
+            <button type="button" className="btn primary" disabled={busy || !n.full_name.trim() || !n.username || n.password.length < 8} onClick={create}>
+              {busy ? 'Creating…' : n.role === 'staff' ? `Create account and assign ${n.mods.length} module${n.mods.length === 1 ? '' : 's'}` : 'Create admin account'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {resetFor && <ResetPassword p={resetFor} onDone={(pw) => { setCreds({ name: resetFor.full_name, username: resetFor.username, password: pw }); setResetFor(null); }} onCancel={() => setResetFor(null)} />}
+
+      <div className="panel tablebox">
+        <table>
+          <thead><tr><th>Name</th><th>Username</th><th>Joined</th><th>Done / assigned</th><th>Missing modules</th><th>Status</th><th>Account</th></tr></thead>
+          <tbody>
+            {people.map((s) => {
+              const isStaff = s.role === 'staff';
+              const am = isStaff ? ledger.assignedMods(s.id) : [];
+              const missing = isStaff ? published.filter((m) => !ledger.asg(s.id, m.id)) : [];
+              const st = ledger.staffStatus(s.id);
+              return (
+                <tr key={s.id}>
+                  <td><b>{s.full_name}</b><div className="small muted">{isStaff ? s.job_role : 'Admin'}</div></td>
+                  <td className="mono">{s.username}</td>
+                  <td>{fmt(s.joined_on)}</td>
+                  <td>{isStaff ? `${am.filter((m) => ledger.done(s.id, m)).length} / ${am.length}` : '—'}</td>
+                  <td>{!isStaff || !s.active ? '—' : missing.length ? (
+                    <div className="stack" style={{ gap: 6, alignItems: 'flex-start' }}>
+                      <span className="small" style={{ color: 'var(--warn-ink)' }}>{missing.length} not assigned: {missing.map((m) => m.title).join(', ')}</span>
+                      <button type="button" className="btn slim" disabled={busy} onClick={async () => {
+                        setBusy(true);
+                        try { for (const m of missing) await rpc('assign_staff', { p_module: m.id, p_staff: [s.id] }); toast(`Assigned ${missing.length} module${missing.length === 1 ? '' : 's'} to ${s.full_name}`); await reload(); }
+                        catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+                      }}>Assign {missing.length === 1 ? 'it' : `all ${missing.length}`}</button>
+                    </div>) : <span className="small muted">All assigned</span>}</td>
+                  <td>{isStaff ? <span className={`pill ${st.cls}`}>{st.label}</span> : s.active ? <span className="pill plain">Admin</span> : <span className="pill plain">Deactivated</span>}</td>
+                  <td>
+                    <div className="row" style={{ gap: 6 }}>
+                      <button type="button" className="btn slim" disabled={busy || !s.active} onClick={() => setResetFor(s)}>Reset password</button>
+                      {s.id !== me?.id && (
+                        <button type="button" className={`btn slim ${s.active ? 'danger' : ''}`} disabled={busy} onClick={async () => {
+                          if (s.active && !window.confirm(`Deactivate ${s.full_name}? They can no longer sign in. Their training record is kept.`)) return;
+                          setBusy(true);
+                          try { await adminUsers({ action: 'set_active', user_id: s.id, active: !s.active }); toast(s.active ? `${s.full_name} deactivated` : `${s.full_name} reactivated`); await reload(); }
+                          catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+                        }}>{s.active ? 'Deactivate' : 'Reactivate'}</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {inactiveCount > 0 && <button type="button" className="link small" onClick={() => setShowInactive(!showInactive)}>{showInactive ? 'Hide' : 'Show'} {inactiveCount} deactivated account{inactiveCount === 1 ? '' : 's'}</button>}
+    </>
+  );
+}
+
+function ResetPassword({ p, onDone, onCancel }: { p: Profile; onDone: (pw: string) => void; onCancel: () => void }) {
+  const toast = useToast();
+  const [pw, setPw] = useState(tempPassword());
+  const [busy, setBusy] = useState(false);
+  return (
+    <section className="panel pad stack">
+      <h2>Reset password for {p.full_name}</h2>
+      <label className="field" htmlFor="rp-pass">New temporary password
+        <span className="row" style={{ flexWrap: 'nowrap' }}><input id="rp-pass" className="mono" style={{ flex: 1 }} value={pw} onChange={(e) => setPw(e.target.value)} />
+          <button type="button" className="btn slim" onClick={() => setPw(tempPassword())}>New</button></span></label>
+      <p className="small muted">They will be asked to choose their own password when they next sign in.</p>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn primary" disabled={busy || pw.length < 8} onClick={async () => {
+          setBusy(true);
+          try { await adminUsers({ action: 'reset_password', user_id: p.id, password: pw }); onDone(pw); }
+          catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+        }}>{busy ? 'Saving…' : 'Reset password'}</button>
+      </div>
+    </section>
+  );
+}
