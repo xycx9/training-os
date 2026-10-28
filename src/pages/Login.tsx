@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { APP_NAME, ORG_NAME } from '../lib/supabase';
+import { APP_NAME } from '../lib/supabase';
+import { useCompany } from '../lib/company';
 import { Mark } from '../components/Mark';
 
 export default function Login() {
+  const { company } = useCompany();
   const { profile, loading, signIn, notice } = useAuth();
   const nav = useNavigate();
   const [username, setUsername] = useState('');
@@ -28,7 +30,7 @@ export default function Login() {
         <div className="loginhead">
           <Mark size={44} tone="onWhite" />
           <div>
-            <p className="eyebrow">{ORG_NAME}</p>
+            <p className="eyebrow">{company.name}</p>
             <h1 style={{ marginTop: 4 }}>{APP_NAME}</h1>
             <p className="muted small" style={{ marginTop: 6 }}>Sign in to continue your training.</p>
           </div>

@@ -109,4 +109,41 @@ export interface PastTraining {
   evidence_name: string | null;
   entered_by: string | null;
   entered_at: string;
+  session_id?: string | null;
+}
+
+/** A downloadable reading material attached to a module version. */
+export interface ModuleFile {
+  id: string;
+  version_id: string;
+  file_path: string;
+  file_name: string;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
+/** A training session held before or outside the system, recorded by an admin. */
+export interface TrainingSession {
+  id: string;
+  title: string;
+  held_on: string;
+  hours: number;
+  delivered_by: string | null;
+  assessed: boolean;
+  pass_mark: number | null;
+  notes: string | null;
+  entered_by: string | null;
+  entered_at: string;
+}
+
+/** Slides and materials used in a session (staff can download), or evidence (admins only). */
+export interface SessionFile {
+  id: string;
+  session_id: string;
+  kind: 'material' | 'evidence';
+  file_path: string;
+  file_name: string;
+  size_bytes: number | null;
+  uploaded_at: string;
 }

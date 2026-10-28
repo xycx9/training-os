@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { fmt, fmtH } from '../../lib/logic';
-import { errText, rpc, signedUrl } from '../../lib/supabase';
+import { errText, rpc, signedUrl, supabase } from '../../lib/supabase';
+import type { ModuleFile } from '../../lib/types';
+import { FileList } from '../../components/Files';
 import { PdfViewer } from '../../components/PdfViewer';
 import { useToast } from '../../components/Toast';
 import { useStaffData } from './Home';
@@ -14,6 +16,7 @@ export default function Learn() {
   const [page, setPage] = useState(1);
   const [url, setUrl] = useState<string | null>(null);
   const [maxPage, setMaxPage] = useState(0);
+  const [readings, setReadings] = useState<ModuleFile[]>([]);
 
   const m = d?.modules.find((x) => x.id === id);
   const cv = d?.versions.find((v) => v.module_id === id);
@@ -26,6 +29,11 @@ export default function Learn() {
   useEffect(() => {
     if (cv?.file_path) signedUrl(cv.file_path).then(setUrl).catch((e) => toast(errText(e), true));
   }, [cv?.file_path, toast]);
+  useEffect(() => {
+    if (!cv) return;
+    supabase.from('module_files').select('*').eq('version_id', cv.id).order('file_name')
+      .then(({ data }) => setReadings((data as ModuleFile[] | null) ?? []));
+  }, [cv?.id]);
   useEffect(() => {
     if (!m || !a || page <= maxPage) return;
     rpc<number>('record_progress', { p_module: m.id, p_page: page }).then((n) => setMaxPage(n)).catch(() => {});
@@ -82,6 +90,12 @@ export default function Learn() {
                 : 'Unlocks after you reach the last page.'}
             </p>
           </div>
+          {readings.length > 0 && (
+            <div className="panel pad stack" style={{ gap: 10 }}>
+              <div><h3>Reading materials</h3><p className="small muted" style={{ marginTop: 2 }}>To download and keep for reference. Optional, and not needed for the assessment.</p></div>
+              <FileList files={readings} bucket="readings" />
+            </div>
+          )}
           <div className="panel pad stack" style={{ gap: 6 }}>
             <h3>About this module</h3>
             <p className="small muted">{m.duration_hours ? `Completing it adds ${fmtH(m.duration_hours)} to your training record.` : 'Completing it is added to your training record.'}{a ? ` Due ${fmt(a.due_on)}.` : ''}</p>

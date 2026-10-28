@@ -1,4 +1,4 @@
-// Admin-only account management: create staff, reset passwords, deactivate.
+// Admin-only account management: create staff, edit profiles, reset passwords, deactivate, delete.
 // Deployed as a Supabase Edge Function. Uses the service role key, which never reaches the browser.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
@@ -27,16 +27,21 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Use POST' }, 405);
 
   const url = Deno.env.get('SUPABASE_URL')!;
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const authHeader = req.headers.get('Authorization') ?? '';
+  // Works with both the legacy service_role key and the newer secret keys.
+  let serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!serviceKey) {
+    try { serviceKey = Object.values(JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}'))[0] as string ?? ''; } catch { /* none */ }
+  }
+  if (!serviceKey) serviceKey = Deno.env.get('SUPABASE_SECRET_KEY') ?? '';
+  if (!url || !serviceKey) return json({ error: 'The function has no server key. In Supabase, add a secret named SUPABASE_SERVICE_ROLE_KEY.' }, 500);
 
-  // Who is calling?
-  const caller = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
-  const { data: who, error: whoErr } = await caller.auth.getUser();
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  // Who is calling? The function checks the sign-in itself, so "Verify JWT" can stay off.
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!token) return json({ error: 'Please sign in again.' }, 401);
+  const { data: who, error: whoErr } = await admin.auth.getUser(token);
   if (whoErr || !who.user) return json({ error: 'Please sign in again.' }, 401);
-
-  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { data: me } = await admin.from('profiles').select('role, active').eq('id', who.user.id).single();
   if (!me || me.role !== 'admin' || !me.active) return json({ error: 'Only admins can manage accounts.' }, 403);
 
@@ -50,7 +55,7 @@ Deno.serve(async (req) => {
       const fullName = String(body.full_name ?? '').trim();
       const password = String(body.password ?? '');
       const role = body.role === 'admin' ? 'admin' : 'staff';
-      const jobRole = String(body.job_role ?? 'Counter staff').trim() || 'Counter staff';
+      const jobRole = ['Teller', 'Compliance officer', 'Management'].includes(String(body.job_role)) ? String(body.job_role) : 'Teller';
       const joinedOn = /^\d{4}-\d{2}-\d{2}$/.test(String(body.joined_on ?? '')) ? String(body.joined_on) : todayMY();
       const moduleIds = Array.isArray(body.module_ids) ? (body.module_ids as string[]) : [];
       const dueDays = Math.max(1, Math.min(365, Number(body.due_days) || 14));
@@ -86,6 +91,34 @@ Deno.serve(async (req) => {
       return json({ id: created.user.id });
     }
 
+    if (action === 'update_profile') {
+      const id = String(body.user_id ?? '');
+      const { data: cur } = await admin.from('profiles').select('id, username, role').eq('id', id).maybeSingle();
+      if (!cur) return json({ error: 'Account not found.' }, 404);
+      const username = String(body.username ?? '').trim().toLowerCase();
+      const fullName = String(body.full_name ?? '').trim();
+      const joinedOn = String(body.joined_on ?? '');
+      if (!/^[a-z0-9._-]{3,32}$/.test(username)) return json({ error: 'Username must be 3–32 characters: letters, numbers, dot, dash or underscore.' }, 400);
+      if (!fullName) return json({ error: 'Enter the full name.' }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(joinedOn)) return json({ error: 'Enter the date joined.' }, 400);
+      const patch: Record<string, unknown> = { full_name: fullName, joined_on: joinedOn };
+      if (cur.role === 'staff') patch.job_role = ['Teller', 'Compliance officer', 'Management'].includes(String(body.job_role)) ? String(body.job_role) : 'Teller';
+      if (username !== cur.username) {
+        const { data: taken } = await admin.from('profiles').select('id').eq('username', username).neq('id', id).maybeSingle();
+        if (taken) return json({ error: `The username "${username}" is already taken.` }, 409);
+        // The sign-in address follows the username; the password stays the same.
+        const { error: eErr } = await admin.auth.admin.updateUserById(id, { email: `${username}@${LOGIN_DOMAIN}`, email_confirm: true, user_metadata: { username } });
+        if (eErr) return json({ error: eErr.message }, 400);
+        patch.username = username;
+      }
+      const { error } = await admin.from('profiles').update(patch).eq('id', id);
+      if (error) {
+        if (patch.username) await admin.auth.admin.updateUserById(id, { email: `${cur.username}@${LOGIN_DOMAIN}`, email_confirm: true, user_metadata: { username: cur.username } });
+        return json({ error: error.message }, 400);
+      }
+      return json({ ok: true });
+    }
+
     if (action === 'reset_password') {
       const id = String(body.user_id ?? '');
       const password = String(body.password ?? '');
@@ -103,6 +136,27 @@ Deno.serve(async (req) => {
       const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: active ? 'none' : '876000h' });
       if (error) return json({ error: error.message }, 400);
       await admin.from('profiles').update({ active }).eq('id', id);
+      return json({ ok: true });
+    }
+
+    if (action === 'delete') {
+      const id = String(body.user_id ?? '');
+      if (!id) return json({ error: 'No account chosen.' }, 400);
+      if (id === who.user.id) return json({ error: 'You cannot delete your own account.' }, 400);
+      const { count: done } = await admin.from('attempts').select('id', { count: 'exact', head: true }).eq('staff_id', id).eq('status', 'submitted');
+      const { count: past } = await admin.from('past_training').select('id', { count: 'exact', head: true }).eq('staff_id', id);
+      const n = (done ?? 0) + (past ?? 0);
+      if (n > 0) return json({ error: `This account has ${n} training record${n === 1 ? '' : 's'}, so it can't be deleted. Deactivate it instead.` }, 409);
+      // Unfinished quiz attempts are not evidence; clear them so the account can go.
+      await admin.from('attempts').delete().eq('staff_id', id).eq('status', 'in_progress');
+      await admin.from('assignments').update({ created_by: null }).eq('created_by', id);
+      await admin.from('version_log').update({ by_user: null }).eq('by_user', id);
+      await admin.from('module_versions').update({ published_by: null }).eq('published_by', id);
+      await admin.from('past_training').update({ entered_by: null }).eq('entered_by', id);
+      const { error: pErr } = await admin.from('profiles').delete().eq('id', id);
+      if (pErr) return json({ error: pErr.message }, 400);
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) return json({ error: error.message }, 400);
       return json({ ok: true });
     }
 

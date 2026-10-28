@@ -3,13 +3,14 @@ import { Link, useParams } from 'react-router-dom';
 import { useAdmin } from '../../lib/data';
 import { addDays, cycleLabel, fmt, fmtH, kindLabel } from '../../lib/logic';
 import { errText, rpc, signedUrl, supabase } from '../../lib/supabase';
-import type { Module, Question } from '../../lib/types';
+import type { Module, ModuleFile, Question, Version } from '../../lib/types';
+import { AddFiles, FileList, READING_EXT, READING_MB, uploadFile, type StoredFile } from '../../components/Files';
 import { PdfViewer } from '../../components/PdfViewer';
 import { useToast } from '../../components/Toast';
 import { statusPill } from './Modules';
 
 const L = 'ABCD';
-type Tab = 'material' | 'assign' | 'questions' | 'results' | 'versions';
+type Tab = 'material' | 'readings' | 'assign' | 'questions' | 'results' | 'versions';
 
 export function QuestionView({ q, i, actions }: { q: Question; i: number; actions?: ReactNode }) {
   return (
@@ -64,7 +65,7 @@ export default function ModuleDetail() {
   };
 
   const tabs: [Tab, string][] = [
-    ['material', 'Material'], ['assign', `Assigned (${ledger.assignees(m).length})`], ['questions', `Question bank (${questions?.length ?? '…'})`],
+    ['material', 'Slides'], ['readings', 'Reading materials'], ['assign', `Assigned (${ledger.assignees(m).length})`], ['questions', `Question bank (${questions?.length ?? '…'})`],
     ['results', 'Results'], ['versions', `Versions (${data.versions.filter((v) => v.module_id === m.id).length})`],
   ];
 
@@ -114,6 +115,8 @@ export default function ModuleDetail() {
           </div>
         </div>
       )}
+
+      {tab === 'readings' && <ReadingsTab cv={cv} />}
 
       {tab === 'assign' && <AssignTab m={m} busy={busy} run={run} />}
 
@@ -269,6 +272,68 @@ function ResultsTab({ m }: { m: Module }) {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/** Downloadable reading materials for the current version (not tracked, not needed to unlock the quiz). */
+function ReadingsTab({ cv }: { cv: Version }) {
+  const { data } = useAdmin();
+  const toast = useToast();
+  const [files, setFiles] = useState<ModuleFile[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => {
+    const { data: rows, error } = await supabase.from('module_files').select('*').eq('version_id', cv.id).order('file_name');
+    if (error) { toast(error.message.includes('module_files') ? 'Reading materials need the latest database update (0004). See the README.' : error.message, true); setFiles([]); return; }
+    setFiles(rows as ModuleFile[]);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [cv.id]);
+  const nameOf = (id: string | null) => data?.people.find((p) => p.id === id)?.full_name ?? 'admin';
+
+  const add = async (picked: File[]) => {
+    setBusy(true);
+    let n = 0;
+    try {
+      for (const f of picked) {
+        const up = await uploadFile('readings', `modules/${cv.module_id}`, f);
+        const { error } = await supabase.from('module_files').insert({ version_id: cv.id, ...up });
+        if (error) { await supabase.storage.from('readings').remove([up.file_path]); throw error; }
+        n++;
+      }
+      toast(`${n} file${n === 1 ? '' : 's'} added. Staff can download ${n === 1 ? 'it' : 'them'} now.`);
+    } catch (e) { toast(errText(e), true); }
+    finally { setBusy(false); await load(); }
+  };
+  const remove = async (f: StoredFile) => {
+    if (!window.confirm(`Remove “${f.file_name}”? Staff will no longer be able to download it.`)) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from('module_files').delete().eq('id', f.id);
+      if (error) throw error;
+      // Earlier versions may still list the same file; only delete it from storage when nothing uses it.
+      const { count } = await supabase.from('module_files').select('id', { count: 'exact', head: true }).eq('file_path', f.file_path);
+      if (!count) await supabase.storage.from('readings').remove([f.file_path]);
+      toast('File removed');
+    } catch (e) { toast(errText(e), true); }
+    finally { setBusy(false); await load(); }
+  };
+
+  return (
+    <div className="stack">
+      <div className="panel pad stack">
+        <div className="spread" style={{ alignItems: 'flex-start' }}>
+          <div style={{ flex: '1 1 320px' }}>
+            <h2>Reading materials</h2>
+            <p className="small muted" style={{ marginTop: 4 }}>Documents staff can download and keep, such as the policy, procedures, BNM guidelines or a summary sheet. They appear beside the slides on the staff module page. Reading them is not tracked and is not needed to start the assessment.</p>
+          </div>
+          <AddFiles label={busy ? 'Uploading…' : '+ Add files'} exts={READING_EXT} maxMb={READING_MB} onFiles={add} disabled={busy} />
+        </div>
+        {files === null ? <p className="small muted">Loading…</p> : (
+          <FileList files={files} bucket="readings" onRemove={busy ? undefined : remove} empty="No reading materials yet. Add PDF, Word, Excel or PowerPoint files, up to 50 MB each." />
+        )}
+        {files && files.length > 0 && <p className="small muted">Added by {[...new Set(files.map((f) => nameOf(f.uploaded_by)))].join(', ')}.</p>}
+      </div>
+      <p className="small muted">These files belong to version <span className="mono">{cv.label}</span>. When you publish a new version they are copied across, so remove any that no longer apply. Earlier versions keep their own list.</p>
     </div>
   );
 }

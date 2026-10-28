@@ -35,6 +35,7 @@ export default function Staff() {
   const [err, setErr] = useState<string | null>(null);
   const [creds, setCreds] = useState<{ name: string; username: string; password: string } | null>(null);
   const [resetFor, setResetFor] = useState<Profile | null>(null);
+  const [editFor, setEditFor] = useState<Profile | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [delFor, setDelFor] = useState<Profile | null>(null);
   const [typed, setTyped] = useState('');
@@ -148,6 +149,8 @@ export default function Staff() {
         </section>
       ))}
 
+      {editFor && <EditProfile key={editFor.id} p={editFor} self={editFor.id === me?.id} onDone={() => setEditFor(null)} />}
+
       {resetFor && <ResetPassword p={resetFor} onDone={(pw) => { setCreds({ name: resetFor.full_name, username: resetFor.username, password: pw }); setResetFor(null); }} onCancel={() => setResetFor(null)} />}
 
       <div className="panel tablebox">
@@ -177,14 +180,15 @@ export default function Staff() {
                     </div>) : <span className="small muted">All assigned</span>}</td>
                   <td>{isStaff ? <span className={`pill ${st.cls}`}>{st.label}</span> : s.active ? <span className="pill plain">Admin</span> : <span className="pill plain">Deactivated</span>}</td>
                   <td>
-                    <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                      <button type="button" className="btn slim" disabled={busy || !s.active} onClick={() => setResetFor(s)}>Reset password</button>
+                    <div className="row small" style={{ gap: '4px 14px', minWidth: 150 }}>
+                      <button type="button" className="link" disabled={busy} onClick={() => { setResetFor(null); setDelFor(null); setEditFor(s); window.scrollTo({ top: 0 }); }}>Edit</button>
+                      <button type="button" className="link" disabled={busy || !s.active} onClick={() => setResetFor(s)}>Reset password</button>
                       {s.id !== me?.id && <>
-                        <button type="button" className="btn slim" disabled={busy} onClick={() => {
+                        <button type="button" className="link" disabled={busy} onClick={() => {
                           if (s.active && !window.confirm(`Deactivate ${s.full_name}? They can no longer sign in. Their training record is kept.`)) return;
                           setActive(s, !s.active);
                         }}>{s.active ? 'Deactivate' : 'Reactivate'}</button>
-                        <button type="button" className="btn slim danger" disabled={busy} onClick={() => { setTyped(''); setDelFor(s); window.scrollTo({ top: 0 }); }}>Delete</button>
+                        <button type="button" className="link" style={{ color: 'var(--bad-ink)' }} disabled={busy} onClick={() => { setTyped(''); setDelFor(s); window.scrollTo({ top: 0 }); }}>Delete</button>
                       </>}
                     </div>
                   </td>
@@ -218,6 +222,54 @@ function ResetPassword({ p, onDone, onCancel }: { p: Profile; onDone: (pw: strin
           try { await adminUsers({ action: 'reset_password', user_id: p.id, password: pw }); onDone(pw); }
           catch (e) { toast(errText(e), true); } finally { setBusy(false); }
         }}>{busy ? 'Saving…' : 'Reset password'}</button>
+      </div>
+    </section>
+  );
+}
+
+/** Change a person's name, username, job role or date joined. Their records stay attached to them. */
+function EditProfile({ p, self, onDone }: { p: Profile; self: boolean; onDone: () => void }) {
+  const { reload } = useAdmin();
+  const { reloadProfile } = useAuth();
+  const toast = useToast();
+  const [f, setF] = useState({ full_name: p.full_name, username: p.username, job_role: p.job_role, joined_on: p.joined_on });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const userChanged = f.username.trim().toLowerCase() !== p.username;
+  const changed = userChanged || f.full_name.trim() !== p.full_name || f.job_role !== p.job_role || f.joined_on !== p.joined_on;
+  const save = async () => {
+    setBusy(true); setErr(null);
+    try {
+      await adminUsers({ action: 'update_profile', user_id: p.id, full_name: f.full_name.trim(), username: f.username.trim().toLowerCase(), job_role: f.job_role, joined_on: f.joined_on });
+      toast(userChanged ? `Saved. ${f.full_name.trim()} now signs in as ${f.username.trim().toLowerCase()}.` : 'Profile saved');
+      await reload();
+      if (self) await reloadProfile();
+      onDone();
+    } catch (e) {
+      const m = errText(e);
+      setErr(m === 'Unknown action' ? 'This needs the updated admin-users function. See the update steps.' : m);
+    } finally { setBusy(false); }
+  };
+  return (
+    <section className="panel pad stack" style={{ borderColor: 'var(--accent)' }} aria-label={`Edit profile of ${p.full_name}`}>
+      <div className="spread" style={{ alignItems: 'flex-start' }}>
+        <div><h2>Edit profile: {p.full_name}</h2><p className="small muted" style={{ marginTop: 4 }}>{p.role === 'admin' ? 'Admin' : 'Staff'}{p.active ? '' : ' · deactivated'}</p></div>
+        <button type="button" className="btn slim" onClick={onDone}>Close</button>
+      </div>
+      <div className="grid-fields">
+        <label className="field" htmlFor="ep-name" style={{ gridColumn: 'span 2' }}>Full name (as it should appear on official records)
+          <input id="ep-name" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></label>
+        <label className="field" htmlFor="ep-user">Username
+          <input id="ep-user" className="mono" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} /></label>
+        {p.role === 'staff' && <label className="field" htmlFor="ep-role">Job role
+          <select id="ep-role" value={f.job_role} onChange={(e) => setF({ ...f, job_role: e.target.value })}>{JOB_ROLES.map((r) => <option key={r}>{r}</option>)}</select></label>}
+        <label className="field" htmlFor="ep-joined">Date joined<input id="ep-joined" type="date" value={f.joined_on} onChange={(e) => setF({ ...f, joined_on: e.target.value })} /></label>
+      </div>
+      {userChanged && <div className="note">{self ? 'You' : p.full_name.split(' ')[0]} will sign in with <b className="mono">{f.username.trim().toLowerCase() || '…'}</b> from now on. The password stays the same.{self ? '' : ' Let them know before they next sign in.'}</div>}
+      {err && <div className="err">{err}</div>}
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn" onClick={onDone}>Cancel</button>
+        <button type="button" className="btn primary" disabled={busy || !changed || !f.full_name.trim() || !f.joined_on} onClick={save}>{busy ? 'Saving…' : 'Save changes'}</button>
       </div>
     </section>
   );

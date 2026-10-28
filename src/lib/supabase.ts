@@ -6,7 +6,7 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const configured = Boolean(url && anonKey);
 export const supabase = createClient(url || 'http://localhost', anonKey || 'missing-key');
 
-export const ORG_NAME = (import.meta.env.VITE_ORG_NAME as string | undefined) || 'INCO Licensed Money Changer';
+export const ORG_NAME = (import.meta.env.VITE_ORG_NAME as string | undefined) || 'Inco Licenced Money Changer Sdn Bhd';
 export const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) || 'INCO Compliance Training';
 export const LOGIN_DOMAIN = (import.meta.env.VITE_LOGIN_DOMAIN as string | undefined) || 'training-os.local';
 /** "ycchua" becomes "ycchua@<LOGIN_DOMAIN>"; a full address typed in is used as it is. */

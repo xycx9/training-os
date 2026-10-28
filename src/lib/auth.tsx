@@ -1,3 +1,4 @@
+import { refreshCompany } from './company';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, usernameToEmail } from './supabase';
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut(); setSession(null); setProfile(null); return;
     }
     setProfile(data as Profile);
+    refreshCompany();
   }, []);
 
   useEffect(() => {

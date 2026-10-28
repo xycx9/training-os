@@ -14,11 +14,17 @@ Every attempt is kept as evidence for BNM examinations and audits, including fai
 - Session duration: entered by you, credited as training hours on a pass.
 - Accounts: create staff sign-ins with a temporary password (no email needed), reset passwords, deactivate leavers. Their record is kept.
 - Training records: filter by period (quarter, year, custom) and module. Export CSV, or open a printable training log and save it as PDF.
+- Reading materials: attach documents (PDF, Word, Excel, PowerPoint) to a module for staff to download. Copied to each new version.
+- Past sessions: record a classroom session held before or outside the system, with its slides, evidence (attendance sheet, question paper, answer key), and each attendee's result and score.
+- Staff profiles: edit name, username, job role and date joined. Records stay attached.
+- Company profile: letterhead details, logo and signatory for official training records.
 
 **Staff**
 - My training: what is due, overdue, done, and when the next refresher is.
 - Read the PDF page by page. The assessment unlocks at the last page.
 - Take the quiz: questions drawn at random from the bank, answers shuffled, scored on the server. Results show the correct answer and the page to revisit. Three attempts by default, then it locks and they see the compliance officer.
+- My records: every attempt and recorded training, with session materials to download.
+- Official training record: a statement on company letterhead with a reference number, for outside parties such as CPD/CPE claims. Signed and stamped by hand.
 
 **Security**
 - Staff can never read the question bank or the answer key. They receive questions without answers, and scoring happens in the database.
@@ -65,9 +71,21 @@ About 30–45 minutes, all in the browser. No coding needed. Do the steps in ord
 1. Go to **Edge Functions → Deploy a new function → Via Editor**.
 2. Name it exactly `admin-users`.
 3. Delete the sample code, paste the whole of `supabase/functions/admin-users/index.ts`, and click **Deploy function**.
-4. Leave "Enforce JWT verification" (Verify JWT) **on**.
+4. After deploying, open the function's **Settings** and turn **Verify JWT** **off**, then save. The function checks the sign-in itself; newer Supabase projects reject sign-ins at this gate otherwise.
 
 The function uses keys Supabase already provides to it. You don't need to add any secrets.
+
+### Step 4b. Add past-training records (run once)
+
+In **SQL Editor → New query**, paste the whole of `supabase/migrations/0002_past_training.sql` and click **Run**. This adds the table and private evidence storage used by **Training records → Record past training**.
+
+### Step 4c. Update job roles (run once)
+
+In **SQL Editor → New query**, paste the whole of `supabase/migrations/0003_roles_and_deletion.sql` and click **Run**. Job roles become Teller, Compliance officer and Management.
+
+### Step 4d. Reading materials, past sessions and company profile (run once)
+
+In **SQL Editor → New query**, paste the whole of `supabase/migrations/0004_materials_and_sessions.sql` and click **Run**. This adds downloadable reading materials per module, recorded past sessions, the Company profile used on letterheads, and reference numbers for official training records. Then fill in **Company profile** in the app.
 
 ### Step 5. Create your own admin account
 
@@ -117,7 +135,7 @@ Cloudflare Pages is free and allows business use.
 |---|---|
 | `VITE_SUPABASE_URL` | the Project URL from step 6 |
 | `VITE_SUPABASE_ANON_KEY` | the anon public key from step 6 |
-| `VITE_ORG_NAME` | `INCO Licensed Money Changer` (or whatever should appear in the header and on printed logs) |
+| `VITE_ORG_NAME` | `Inco Licenced Money Changer Sdn Bhd`. Only used until the database update 0004 is run; after that the name comes from Company profile in the app |
 | `NODE_VERSION` | `20` |
 
 5. Click **Save and Deploy**. After a minute or two you get a link like `https://training-os.pages.dev`. That is your app.

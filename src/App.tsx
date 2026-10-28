@@ -12,10 +12,14 @@ import ModuleEditor from './pages/admin/ModuleEditor';
 import Staff from './pages/admin/Staff';
 import Records from './pages/admin/Records';
 import PrintLog from './pages/admin/PrintLog';
+import Sessions, { SessionDetail } from './pages/admin/Sessions';
+import SessionForm from './pages/admin/SessionForm';
 import Home from './pages/staff/Home';
 import Learn from './pages/staff/Learn';
 import Quiz from './pages/staff/Quiz';
 import MyRecords, { MyRecordPrint } from './pages/staff/MyRecords';
+import OfficialRecord from './pages/staff/Official';
+import Company from './pages/admin/Company';
 
 function Splash() {
   return <div className="center"><p className="muted">Loading…</p></div>;
@@ -52,8 +56,13 @@ export default function App() {
         <Route path="modules/:id/edit" element={<ModuleEditor />} />
         <Route path="staff" element={<Staff />} />
         <Route path="records" element={<Records />} />
+        <Route path="sessions" element={<Sessions />} />
+        <Route path="sessions/new" element={<SessionForm />} />
+        <Route path="sessions/:id" element={<SessionDetail />} />
+        <Route path="company" element={<Company />} />
       </Route>
       <Route path="/records/print" element={<Gate role="staff"><MyRecordPrint /></Gate>} />
+      <Route path="/records/official" element={<Gate role="staff"><OfficialRecord /></Gate>} />
       <Route path="/" element={<Gate role="staff"><StaffLayout /></Gate>}>
         <Route index element={<Home />} />
         <Route path="learn/:id" element={<Learn />} />

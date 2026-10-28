@@ -89,7 +89,8 @@ export default function Records() {
       <div className="spread">
         <div><h1>Training records</h1><p className="muted small" style={{ marginTop: 4 }}>Evidence for BNM examinations and audits. Every attempt is kept, including fails.</p></div>
         <div className="row">
-          {!adding && <button type="button" className="btn" onClick={() => setAdding(true)}>+ Record past training</button>}
+          <Link className="btn" to="/admin/sessions/new">+ Record a past session</Link>
+          {!adding && <button type="button" className="btn" onClick={() => setAdding(true)}>+ Single record</button>}
           <button type="button" className="btn" onClick={exportCsv} disabled={!log.length}>Export CSV</button>
           <Link className="btn primary" to={`/admin/records/print?${toQuery(f)}`}>Training log (print or PDF)</Link>
         </div>
@@ -200,9 +201,9 @@ function RowCells({ a, nameOf, openEvidence, removePast, showStaff = true }: { a
     <>
       <td style={{ whiteSpace: 'nowrap' }}>{fmt(a.taken_on)}</td>
       {showStaff && <td>{a.who.full_name}</td>}
-      <td>{a.module_title}{a.manual && (a.delivered_by || a.notes) ? <div className="small muted">{[a.delivered_by, a.notes].filter(Boolean).join(' · ')}</div> : null}</td>
+      <td>{a.session_id ? <Link className="link" to={`/admin/sessions/${a.session_id}`}>{a.module_title}</Link> : a.module_title}{a.manual && (a.delivered_by || a.notes) ? <div className="small muted">{[a.delivered_by, a.notes].filter(Boolean).join(' · ')}</div> : null}</td>
       <td>{a.manual ? <><span className="pill plain">Recorded</span><div className="small muted">by {nameOf(a.entered_by)}, {fmt((a.entered_at || '').slice(0, 10))}</div>
-          <div className="row small" style={{ gap: 10, marginTop: 2 }}>{a.evidence_path && <button type="button" className="link" onClick={() => openEvidence(a.evidence_path!)}>Evidence</button>}<button type="button" className="link" style={{ color: 'var(--bad-ink)' }} onClick={() => removePast(a)}>Remove</button></div></>
+          <div className="row small" style={{ gap: 10, marginTop: 2 }}>{a.session_id ? <Link className="link" to={`/admin/sessions/${a.session_id}`}>Session</Link> : <>{a.evidence_path && <button type="button" className="link" onClick={() => openEvidence(a.evidence_path!)}>Evidence</button>}<button type="button" className="link" style={{ color: 'var(--bad-ink)' }} onClick={() => removePast(a)}>Remove</button></>}</div></>
         : <span className="mono small">System · {a.version_label}</span>}</td>
       <td>{a.score != null ? `${a.score}%` : '—'}</td><td>{fmtH(a.hours)}</td>
       <td>{a.result === 'fail' ? <span className="pill bad">Fail</span> : <span className="pill ok">{resultLabel(a)}</span>}</td>

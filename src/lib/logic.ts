@@ -49,6 +49,8 @@ export interface HistRow {
   notes?: string | null;
   evidence_path?: string | null;
   evidence_name?: string | null;
+  /** Set when the record came from a recorded training session. */
+  session_id?: string | null;
 }
 export const resultLabel = (r: HistRow) => (r.result === 'completed' ? 'Completed' : r.result === 'pass' ? 'Pass' : 'Fail');
 
@@ -106,7 +108,7 @@ export class Ledger {
       taken_on: x.completed_on, submitted_at: x.entered_at, score: x.score, passed: x.result !== 'fail',
       result: x.result, hours: x.result === 'fail' ? 0 : Number(x.hours) || 0, manual: true,
       entered_by: x.entered_by, entered_at: x.entered_at, delivered_by: x.delivered_by, notes: x.notes,
-      evidence_path: x.evidence_path, evidence_name: x.evidence_name,
+      evidence_path: x.evidence_path, evidence_name: x.evidence_name, session_id: x.session_id ?? null,
     }));
     return a.concat(p).sort((x, y) => (x.taken_on === y.taken_on ? (x.submitted_at < y.submitted_at ? -1 : 1) : x.taken_on < y.taken_on ? -1 : 1));
   }

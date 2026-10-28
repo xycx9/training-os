@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { loadAdmin, type AdminData } from '../../lib/data';
-import { fmt, fmtH, Ledger, resultLabel, todayMY } from '../../lib/logic';
-import { APP_NAME, ORG_NAME } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth';
-import { completedCount, filtered, periodLabel, readFilter, sourceText, sumH } from './Records';
+import { fmt, fmtH, Ledger, resultLabel } from '../../lib/logic';
+import { useCompany } from '../../lib/company';
+import { completedCount, filtered, periodLabel, readFilter, sumH } from './Records';
 
 /** A clean page for printing or saving as PDF from the browser. */
 export default function PrintLog() {
   const [params] = useSearchParams();
-  const { profile } = useAuth();
+  const { company } = useCompany();
   const [data, setData] = useState<AdminData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { loadAdmin().then(setData).catch((e) => setErr(e.message)); }, []);
@@ -23,7 +22,6 @@ export default function PrintLog() {
   const people = ledger.staff().filter((s) => !staffId || s.id === staffId);
   const log = people.flatMap((s) => filtered(ledger, s.id, f).map((a) => ({ ...a, who: s })))
     .sort((a, b) => (a.taken_on === b.taken_on ? (a.submitted_at < b.submitted_at ? -1 : 1) : a.taken_on < b.taken_on ? -1 : 1));
-  const nameOf = (id?: string | null) => data.people.find((p) => p.id === id)?.full_name ?? 'admin';
   const recorded = log.filter((a) => a.manual).length;
   const one = staffId ? people[0] : null;
   const label = periodLabel(f);
@@ -37,10 +35,9 @@ export default function PrintLog() {
         <span className="small muted">In the print window, choose “Save as PDF” to keep a file.</span>
       </div>
       <header className="stack" style={{ gap: 4 }}>
-        <p className="small muted">{ORG_NAME}</p>
+        <p className="small muted">{company.name}</p>
         <h1>{one ? `Training record: ${one.full_name}` : 'Staff training log'}</h1>
         <p className="small">Period: <b>{label}</b>{modTitle ? <> · Training: <b>{modTitle}</b></> : null}</p>
-        <p className="small muted">Generated {fmt(todayMY())} by {profile?.full_name}. Source: {APP_NAME}. “System assessment” rows were scored by the system; “Recorded” rows were entered by an administrator for training delivered outside the system, showing who entered them and when.</p>
       </header>
 
       {one && (
@@ -69,12 +66,11 @@ export default function PrintLog() {
         <h2>Training log</h2>
         {log.length ? (
           <table>
-            <thead><tr><th>Date</th><th>Staff</th><th>Training</th><th>Version</th><th>Score</th><th>Result</th><th>Hours</th><th>Source</th></tr></thead>
+            <thead><tr><th>Date</th><th>Staff</th><th>Training</th><th>Version</th><th>Score</th><th>Result</th><th>Hours</th></tr></thead>
             <tbody>{log.map((a) => (
               <tr key={a.id}><td>{fmt(a.taken_on)}</td><td>{a.who.full_name}</td>
                 <td>{a.module_title}{a.manual && (a.delivered_by || a.notes) ? <div className="small muted">{[a.delivered_by, a.notes].filter(Boolean).join(' · ')}</div> : null}</td>
-                <td>{a.manual ? '—' : a.version_label}</td><td>{a.score != null ? `${a.score}%` : '—'}</td><td>{resultLabel(a)}</td><td>{fmtH(a.hours)}</td>
-                <td>{sourceText(a, nameOf)}{a.manual && a.evidence_name ? `; evidence: ${a.evidence_name}` : ''}</td></tr>
+                <td>{a.manual ? '—' : a.version_label}</td><td>{a.score != null ? `${a.score}%` : '—'}</td><td>{resultLabel(a)}</td><td>{fmtH(a.hours)}</td></tr>
             ))}</tbody>
           </table>
         ) : <p className="small muted">No training records in this period.</p>}
