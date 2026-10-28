@@ -94,3 +94,19 @@ export interface ReadProgress {
   staff_id: string;
   max_page: number;
 }
+
+export interface PastTraining {
+  id: string;
+  staff_id: string;
+  title: string;
+  completed_on: string;
+  hours: number;
+  result: 'completed' | 'pass' | 'fail';
+  score: number | null;
+  delivered_by: string | null;
+  notes: string | null;
+  evidence_path: string | null;
+  evidence_name: string | null;
+  entered_by: string | null;
+  entered_at: string;
+}

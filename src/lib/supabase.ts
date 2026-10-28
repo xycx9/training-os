@@ -6,9 +6,14 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const configured = Boolean(url && anonKey);
 export const supabase = createClient(url || 'http://localhost', anonKey || 'missing-key');
 
-export const ORG_NAME = (import.meta.env.VITE_ORG_NAME as string | undefined) || 'Training OS';
+export const ORG_NAME = (import.meta.env.VITE_ORG_NAME as string | undefined) || 'INCO Licensed Money Changer';
+export const APP_NAME = (import.meta.env.VITE_APP_NAME as string | undefined) || 'INCO Compliance Training';
 export const LOGIN_DOMAIN = (import.meta.env.VITE_LOGIN_DOMAIN as string | undefined) || 'training-os.local';
-export const usernameToEmail = (u: string) => `${u.trim().toLowerCase()}@${LOGIN_DOMAIN}`;
+/** "ycchua" becomes "ycchua@<LOGIN_DOMAIN>"; a full address typed in is used as it is. */
+export const usernameToEmail = (u: string) => {
+  const v = u.trim().toLowerCase();
+  return v.includes('@') ? v : `${v}@${LOGIN_DOMAIN}`;
+};
 
 /** Turn a Supabase/Postgres error into a sentence for the user. */
 export function errText(e: unknown): string {
@@ -43,8 +48,8 @@ export async function adminUsers(body: Record<string, unknown>): Promise<{ id?: 
   return data ?? {};
 }
 
-export async function signedUrl(path: string): Promise<string> {
-  const { data, error } = await supabase.storage.from('materials').createSignedUrl(path, 60 * 60);
+export async function signedUrl(path: string, bucket = 'materials'): Promise<string> {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
   if (error || !data) throw new Error(error?.message || 'Could not open the file');
   return data.signedUrl;
 }

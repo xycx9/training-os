@@ -1,5 +1,5 @@
 // Shared rules for "who has to do what, and by when". Mirrors the server rules in the SQL migration.
-import type { Assignment, Attempt, Kind, Module, Profile } from './types';
+import type { Assignment, Attempt, Kind, Module, PastTraining, Profile } from './types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -29,6 +29,29 @@ export const cycleLabel = (m: Pick<Module, 'cycle' | 'refresher_months'>) =>
   m.cycle === 'fixed' ? 'Yearly refresher, fixed deadline' : m.cycle === 'rolling' ? `Refresher every ${m.refresher_months} months` : 'One-off';
 export const kindLabel = (k: Kind) => (k === 'refresher' ? 'Refresher' : k === 'retake' ? 'Retake (updated)' : 'Initial');
 
+/** One line in a training history: a system-scored attempt or a recorded past training. */
+export interface HistRow {
+  id: string;
+  staff_id: string;
+  module_id: string | null;
+  module_title: string;
+  version_label: string;
+  taken_on: string;
+  submitted_at: string;
+  score: number | null;
+  passed: boolean;
+  result: 'pass' | 'fail' | 'completed';
+  hours: number;
+  manual: boolean;
+  entered_by?: string | null;
+  entered_at?: string;
+  delivered_by?: string | null;
+  notes?: string | null;
+  evidence_path?: string | null;
+  evidence_name?: string | null;
+}
+export const resultLabel = (r: HistRow) => (r.result === 'completed' ? 'Completed' : r.result === 'pass' ? 'Pass' : 'Fail');
+
 export type StatusPill = { label: string; cls: 'ok' | 'warn' | 'bad' | 'plain' };
 
 export class Ledger {
@@ -38,6 +61,7 @@ export class Ledger {
     public assignments: Assignment[],
     public attempts: Attempt[],
     public people: Profile[],
+    public past: PastTraining[] = [],
   ) {
     this.today = todayMY();
     this.attempts = attempts.filter((a) => a.status === 'submitted' && a.taken_on);
@@ -70,6 +94,22 @@ export class Ledger {
     return this.atts(sid, m.id).filter((x) => !x.passed && (x.taken_on as string) >= a.assigned_on).length;
   }
   staff() { return this.people.filter((p) => p.role === 'staff'); }
+  /** Full history for one person: system attempts plus recorded past training, oldest first. */
+  history(sid: string): HistRow[] {
+    const a: HistRow[] = this.atts(sid).map((x) => ({
+      id: x.id, staff_id: x.staff_id, module_id: x.module_id, module_title: x.module_title, version_label: x.version_label,
+      taken_on: x.taken_on as string, submitted_at: x.submitted_at || '', score: x.score, passed: !!x.passed,
+      result: x.passed ? 'pass' : 'fail', hours: Number(x.hours) || 0, manual: false,
+    }));
+    const p: HistRow[] = this.past.filter((x) => x.staff_id === sid).map((x) => ({
+      id: x.id, staff_id: x.staff_id, module_id: null, module_title: x.title, version_label: 'Recorded',
+      taken_on: x.completed_on, submitted_at: x.entered_at, score: x.score, passed: x.result !== 'fail',
+      result: x.result, hours: x.result === 'fail' ? 0 : Number(x.hours) || 0, manual: true,
+      entered_by: x.entered_by, entered_at: x.entered_at, delivered_by: x.delivered_by, notes: x.notes,
+      evidence_path: x.evidence_path, evidence_name: x.evidence_name,
+    }));
+    return a.concat(p).sort((x, y) => (x.taken_on === y.taken_on ? (x.submitted_at < y.submitted_at ? -1 : 1) : x.taken_on < y.taken_on ? -1 : 1));
+  }
   assignedMods(sid: string) { return this.published().filter((m) => this.asg(sid, m.id)); }
   assignees(m: Module) { return this.staff().filter((s) => this.asg(s.id, m.id)); }
   isOverdue(sid: string, m: Module) { const a = this.asg(sid, m.id); return !!a && !this.done(sid, m) && a.due_on < this.today; }

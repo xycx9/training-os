@@ -11,6 +11,10 @@ interface Result { score: number; passed: boolean; correct: number; total: numbe
 const shuffle = (n: number) => { const a = Array.from({ length: n }, (_, i) => i); for (let i = n - 1; i > 0; i--) { const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 export default function Quiz() {
+  return <div className="narrow"><QuizInner /></div>;
+}
+
+function QuizInner() {
   const { id } = useParams();
   const nav = useNavigate();
   const [s, setS] = useState<Started | null>(null);
@@ -62,6 +66,7 @@ export default function Quiz() {
         )}
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           {!res.passed && left > 0 && <Link className="btn block" to={`/learn/${id}`}>Review material</Link>}
+          <Link className="btn block" to="/records">See my records</Link>
           <Link className="btn primary block" to="/">Back to my training</Link>
         </div>
       </>

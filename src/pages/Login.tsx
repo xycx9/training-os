@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { ORG_NAME } from '../lib/supabase';
+import { APP_NAME, ORG_NAME } from '../lib/supabase';
+import { Mark } from '../components/Mark';
 
 export default function Login() {
   const { profile, loading, signIn, notice } = useAuth();
@@ -23,18 +24,27 @@ export default function Login() {
 
   return (
     <div className="center">
-      <form className="panel pad stack loginbox" onSubmit={submit}>
-        <div><h1>Training OS</h1><p className="muted small" style={{ marginTop: 4 }}>{ORG_NAME}</p></div>
-        {notice && <div className="warnbox">{notice}</div>}
-        {error && <div className="err" role="alert">{error}</div>}
-        <label className="field" htmlFor="login-user">Username
-          <input id="login-user" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} required />
-        </label>
-        <label className="field" htmlFor="login-pass">Password
-          <input id="login-pass" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        <button type="submit" className="btn primary block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <p className="small muted">Forgot your password? Ask your admin to reset it.</p>
+      <form className="panel loginbox" onSubmit={submit}>
+        <div className="loginhead">
+          <Mark size={44} tone="onWhite" />
+          <div>
+            <p className="eyebrow">{ORG_NAME}</p>
+            <h1 style={{ marginTop: 4 }}>{APP_NAME}</h1>
+            <p className="muted small" style={{ marginTop: 6 }}>Sign in to continue your training.</p>
+          </div>
+        </div>
+        <div className="loginbody">
+          {notice && <div className="warnbox">{notice}</div>}
+          {error && <div className="err" role="alert">{error}</div>}
+          <label className="field" htmlFor="login-user">Username
+            <input id="login-user" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} required />
+          </label>
+          <label className="field" htmlFor="login-pass">Password
+            <input id="login-pass" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </label>
+          <button type="submit" className="btn primary block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          <p className="small muted">Forgot your password? Ask your administrator to reset it.</p>
+        </div>
       </form>
     </div>
   );

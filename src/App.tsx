@@ -15,6 +15,7 @@ import PrintLog from './pages/admin/PrintLog';
 import Home from './pages/staff/Home';
 import Learn from './pages/staff/Learn';
 import Quiz from './pages/staff/Quiz';
+import MyRecords, { MyRecordPrint } from './pages/staff/MyRecords';
 
 function Splash() {
   return <div className="center"><p className="muted">Loading…</p></div>;
@@ -33,7 +34,7 @@ function Gate({ role, children }: { role?: Role; children: ReactNode }) {
 export default function App() {
   if (!configured) {
     return (
-      <div className="center"><div className="panel pad stack loginbox">
+      <div className="center"><div className="panel pad stack loginbox" style={{ padding: 28 }}>
         <h1>Almost there</h1>
         <p>The app is not connected to Supabase yet. Add <span className="mono">VITE_SUPABASE_URL</span> and <span className="mono">VITE_SUPABASE_ANON_KEY</span> to the environment settings and deploy again. The setup guide in README.md explains where to find them.</p>
       </div></div>
@@ -52,10 +53,12 @@ export default function App() {
         <Route path="staff" element={<Staff />} />
         <Route path="records" element={<Records />} />
       </Route>
+      <Route path="/records/print" element={<Gate role="staff"><MyRecordPrint /></Gate>} />
       <Route path="/" element={<Gate role="staff"><StaffLayout /></Gate>}>
         <Route index element={<Home />} />
         <Route path="learn/:id" element={<Learn />} />
         <Route path="learn/:id/quiz" element={<Quiz />} />
+        <Route path="records" element={<MyRecords />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

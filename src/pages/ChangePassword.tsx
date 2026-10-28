@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { rpc, supabase } from '../lib/supabase';
+import { APP_NAME, rpc, supabase } from '../lib/supabase';
+import { Mark } from '../components/Mark';
 
 export default function ChangePassword() {
   const { profile, loading, reloadProfile, signOut } = useAuth();
@@ -32,9 +33,16 @@ export default function ChangePassword() {
 
   return (
     <div className="center">
-      <form className="panel pad stack loginbox" onSubmit={submit}>
-        <div><h1>Choose your password</h1>
-          <p className="muted small" style={{ marginTop: 4 }}>{profile.must_change_password ? 'You signed in with a temporary password. Choose your own to continue.' : 'Choose a new password.'}</p></div>
+      <form className="panel loginbox" onSubmit={submit}>
+        <div className="loginhead">
+          <Mark size={44} tone="onWhite" />
+          <div>
+            <p className="eyebrow">{APP_NAME}</p>
+            <h1 style={{ marginTop: 4 }}>Choose your password</h1>
+            <p className="muted small" style={{ marginTop: 6 }}>{profile.must_change_password ? 'You signed in with a temporary password. Choose your own to continue.' : 'Choose a new password.'}</p>
+          </div>
+        </div>
+        <div className="loginbody">
         {error && <div className="err" role="alert">{error}</div>}
         <label className="field" htmlFor="pw1">New password
           <input id="pw1" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
@@ -44,6 +52,7 @@ export default function ChangePassword() {
         </label>
         <button type="submit" className="btn primary block" disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
         <button type="button" className="link small" onClick={async () => { await signOut(); nav('/login'); }}>Sign out instead</button>
+        </div>
       </form>
     </div>
   );

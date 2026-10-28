@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { useAdmin } from '../../lib/data';
 import { fmt, fmtH, tempPassword, todayMY } from '../../lib/logic';
-import { adminUsers, errText, rpc } from '../../lib/supabase';
+import { adminUsers, APP_NAME, errText, rpc } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth';
 import type { Profile } from '../../lib/types';
 import { useToast } from '../../components/Toast';
 
-const JOB_ROLES = ['Counter staff', 'Compliance officer', 'Manager', 'New joiner'];
+export const JOB_ROLES = ['Teller', 'Compliance officer', 'Management'];
 
 interface NewStaff { full_name: string; username: string; role: 'staff' | 'admin'; job_role: string; joined_on: string; password: string; mods: string[]; due_days: number }
 
 function Credentials({ name, username, password, onClose }: { name: string; username: string; password: string; onClose: () => void }) {
   const toast = useToast();
-  const text = `Training OS sign-in for ${name}\nUsername: ${username}\nTemporary password: ${password}\nYou will be asked to choose your own password.`;
+  const text = `${APP_NAME} sign-in for ${name}\nWebsite: ${window.location.origin}\nUsername: ${username}\nTemporary password: ${password}\nYou will be asked to choose your own password.`;
   return (
     <section className="panel pad stack" style={{ borderColor: 'var(--accent)' }} aria-live="polite">
       <h2>Give these details to {name}</h2>
@@ -36,10 +36,24 @@ export default function Staff() {
   const [creds, setCreds] = useState<{ name: string; username: string; password: string } | null>(null);
   const [resetFor, setResetFor] = useState<Profile | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [delFor, setDelFor] = useState<Profile | null>(null);
+  const [typed, setTyped] = useState('');
   if (!data || !ledger) return null;
   const published = ledger.published();
+  const recordCount = (id: string) => data.attempts.filter((a) => a.staff_id === id).length + data.past.filter((p) => p.staff_id === id).length;
+  const setActive = async (s: Profile, active: boolean) => {
+    setBusy(true);
+    try { await adminUsers({ action: 'set_active', user_id: s.id, active }); toast(active ? `${s.full_name} reactivated` : `${s.full_name} deactivated; records kept`); setDelFor(null); await reload(); }
+    catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+  };
+  const doDelete = async (s: Profile) => {
+    setBusy(true);
+    try { await adminUsers({ action: 'delete', user_id: s.id }); toast(`${s.full_name} deleted`); setDelFor(null); setTyped(''); await reload(); }
+    catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+  };
+  const delCount = delFor ? recordCount(delFor.id) : 0;
 
-  const startAdd = () => { setErr(null); setCreds(null); setN({ full_name: '', username: '', role: 'staff', job_role: 'Counter staff', joined_on: todayMY(), password: tempPassword(), mods: published.map((m) => m.id), due_days: 14 }); };
+  const startAdd = () => { setErr(null); setCreds(null); setN({ full_name: '', username: '', role: 'staff', job_role: 'Teller', joined_on: todayMY(), password: tempPassword(), mods: published.map((m) => m.id), due_days: 14 }); };
   const suggestUser = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 32);
 
   const create = async () => {
@@ -61,7 +75,7 @@ export default function Staff() {
   return (
     <>
       <div className="spread">
-        <div><h1>Staff</h1><p className="muted small" style={{ marginTop: 4 }}>Create sign-ins, add new joiners and make sure everyone has every module they need.</p></div>
+        <div><h1>Staff</h1><p className="muted small" style={{ marginTop: 4 }}>Create sign-ins, add new joiners, remove dummy accounts and make sure everyone has every module they need.</p></div>
         {!n && <button type="button" className="btn primary" onClick={startAdd}>+ Add staff</button>}
       </div>
 
@@ -112,11 +126,33 @@ export default function Staff() {
         </section>
       )}
 
+      {delFor && (delCount === 0 ? (
+        <section className="panel pad stack" style={{ border: '2px solid var(--bad-ink)' }} aria-live="polite">
+          <h2>Delete {delFor.full_name}?</h2>
+          <p className="small">This permanently removes the account <b className="mono">{delFor.username}</b> and its sign-in. It has <b>no training records</b>, so nothing is lost from your evidence. This cannot be undone.</p>
+          <label className="field" htmlFor="del-type"><span>Type <span className="mono">DELETE</span> to confirm</span>
+            <input id="del-type" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} /></label>
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn" onClick={() => { setDelFor(null); setTyped(''); }}>Cancel</button>
+            <button type="button" className="btn" style={{ background: 'var(--bad-ink)', borderColor: 'var(--bad-ink)', color: '#fff' }} disabled={busy || typed !== 'DELETE'} onClick={() => doDelete(delFor)}>{busy ? 'Deleting…' : 'Delete permanently'}</button>
+          </div>
+        </section>
+      ) : (
+        <section className="panel pad stack" style={{ border: '2px solid var(--warn-ink)' }} aria-live="polite">
+          <h2>{delFor.full_name} has training records</h2>
+          <p className="small">This account has <b>{delCount} training record{delCount === 1 ? '' : 's'}</b>. Deleting it would erase that evidence, so it can't be deleted. {delFor.active ? <><b>Deactivate</b> it instead: they can no longer sign in, they disappear from lists and assignments, and their records stay available for examiners.</> : 'It is already deactivated, so their records are kept and they cannot sign in.'}</p>
+          <div className="row" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="btn" onClick={() => setDelFor(null)}>Close</button>
+            {delFor.active && <button type="button" className="btn primary" disabled={busy} onClick={() => setActive(delFor, false)}>Deactivate instead</button>}
+          </div>
+        </section>
+      ))}
+
       {resetFor && <ResetPassword p={resetFor} onDone={(pw) => { setCreds({ name: resetFor.full_name, username: resetFor.username, password: pw }); setResetFor(null); }} onCancel={() => setResetFor(null)} />}
 
       <div className="panel tablebox">
         <table>
-          <thead><tr><th>Name</th><th>Username</th><th>Joined</th><th>Done / assigned</th><th>Missing modules</th><th>Status</th><th>Account</th></tr></thead>
+          <thead><tr><th>Name</th><th>Username</th><th>Joined</th><th>Done / assigned</th><th>Records</th><th>Missing modules</th><th>Status</th><th>Account</th></tr></thead>
           <tbody>
             {people.map((s) => {
               const isStaff = s.role === 'staff';
@@ -127,8 +163,9 @@ export default function Staff() {
                 <tr key={s.id}>
                   <td><b>{s.full_name}</b><div className="small muted">{isStaff ? s.job_role : 'Admin'}</div></td>
                   <td className="mono">{s.username}</td>
-                  <td>{fmt(s.joined_on)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmt(s.joined_on)}</td>
                   <td>{isStaff ? `${am.filter((m) => ledger.done(s.id, m)).length} / ${am.length}` : '—'}</td>
+                  <td>{isStaff ? recordCount(s.id) : '—'}</td>
                   <td>{!isStaff || !s.active ? '—' : missing.length ? (
                     <div className="stack" style={{ gap: 6, alignItems: 'flex-start' }}>
                       <span className="small" style={{ color: 'var(--warn-ink)' }}>{missing.length} not assigned: {missing.map((m) => m.title).join(', ')}</span>
@@ -140,16 +177,15 @@ export default function Staff() {
                     </div>) : <span className="small muted">All assigned</span>}</td>
                   <td>{isStaff ? <span className={`pill ${st.cls}`}>{st.label}</span> : s.active ? <span className="pill plain">Admin</span> : <span className="pill plain">Deactivated</span>}</td>
                   <td>
-                    <div className="row" style={{ gap: 6 }}>
+                    <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                       <button type="button" className="btn slim" disabled={busy || !s.active} onClick={() => setResetFor(s)}>Reset password</button>
-                      {s.id !== me?.id && (
-                        <button type="button" className={`btn slim ${s.active ? 'danger' : ''}`} disabled={busy} onClick={async () => {
+                      {s.id !== me?.id && <>
+                        <button type="button" className="btn slim" disabled={busy} onClick={() => {
                           if (s.active && !window.confirm(`Deactivate ${s.full_name}? They can no longer sign in. Their training record is kept.`)) return;
-                          setBusy(true);
-                          try { await adminUsers({ action: 'set_active', user_id: s.id, active: !s.active }); toast(s.active ? `${s.full_name} deactivated` : `${s.full_name} reactivated`); await reload(); }
-                          catch (e) { toast(errText(e), true); } finally { setBusy(false); }
+                          setActive(s, !s.active);
                         }}>{s.active ? 'Deactivate' : 'Reactivate'}</button>
-                      )}
+                        <button type="button" className="btn slim danger" disabled={busy} onClick={() => { setTyped(''); setDelFor(s); window.scrollTo({ top: 0 }); }}>Delete</button>
+                      </>}
                     </div>
                   </td>
                 </tr>
@@ -159,6 +195,7 @@ export default function Staff() {
         </table>
       </div>
       {inactiveCount > 0 && <button type="button" className="link small" onClick={() => setShowInactive(!showInactive)}>{showInactive ? 'Hide' : 'Show'} {inactiveCount} deactivated account{inactiveCount === 1 ? '' : 's'}</button>}
+      <div className="note"><b>Deleting accounts.</b> Delete is for accounts with no training records, such as dummy or test accounts, and removes them completely. Anyone with records can only be deactivated, so training evidence is never lost.</div>
     </>
   );
 }

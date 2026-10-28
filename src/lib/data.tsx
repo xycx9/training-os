@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
 import { Ledger } from './logic';
-import type { Assignment, Attempt, Module, Profile, ReadProgress, Version, VersionLog } from './types';
+import type { Assignment, Attempt, Module, PastTraining, Profile, ReadProgress, Version, VersionLog } from './types';
 
 const ATTEMPT_COLS = 'id,staff_id,module_id,version_id,module_title,version_label,assignment_id,status,submitted_at,taken_on,score,passed,correct_count,total,hours';
 
@@ -28,6 +28,7 @@ export interface AdminData {
   logs: VersionLog[];
   assignments: Assignment[];
   attempts: Attempt[];
+  past: PastTraining[];
 }
 
 interface AdminCtx {
@@ -41,16 +42,18 @@ const Ctx = createContext<AdminCtx | null>(null);
 
 export async function loadAdmin(): Promise<AdminData> {
   await supabase.rpc('sync_refreshers');
-  const [people, modules, versions, logs, assignments, attempts] = await Promise.all([
+  const [people, modules, versions, logs, assignments, attempts, past] = await Promise.all([
     fetchAll<Profile>((a, b) => supabase.from('profiles').select('*').order('full_name').range(a, b)),
     fetchAll<Module>((a, b) => supabase.from('modules').select('*').order('created_at').range(a, b)),
     fetchAll<Version>((a, b) => supabase.from('module_versions').select('*').order('created_at').range(a, b)),
     fetchAll<VersionLog>((a, b) => supabase.from('version_log').select('*').order('at').range(a, b)),
     fetchAll<Assignment>((a, b) => supabase.from('assignments').select('*').order('assigned_on').range(a, b)),
     fetchAll<Attempt>((a, b) => supabase.from('attempts').select(ATTEMPT_COLS).eq('status', 'submitted').order('submitted_at').range(a, b)),
+    fetchAll<PastTraining>((a, b) => supabase.from('past_training').select('*').order('completed_on').range(a, b)).catch(() => [] as PastTraining[]),
   ]);
   return {
     people, versions, logs, assignments,
+    past: num(past, ['hours']),
     modules: num(modules, ['duration_hours']),
     attempts: num(attempts, ['hours']),
   };
@@ -64,7 +67,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     catch (e) { setError(e instanceof Error ? e.message : 'Could not load data'); }
   }, []);
   useEffect(() => { reload(); }, [reload]);
-  const ledger = useMemo(() => (data ? new Ledger(data.modules, data.assignments, data.attempts, data.people) : null), [data]);
+  const ledger = useMemo(() => (data ? new Ledger(data.modules, data.assignments, data.attempts, data.people, data.past) : null), [data]);
   const currentVersion = useCallback((id: string) => data?.versions.find((v) => v.module_id === id && v.is_current), [data]);
   return <Ctx.Provider value={{ data, ledger, error, reload, currentVersion }}>{children}</Ctx.Provider>;
 }
@@ -83,19 +86,22 @@ export interface StaffData {
   assignments: Assignment[];
   attempts: Attempt[];
   progress: ReadProgress[];
+  past: PastTraining[];
   ledger: Ledger;
 }
 
 export async function loadStaff(me: Profile): Promise<StaffData> {
   await supabase.rpc('sync_refreshers');
-  const [modules, versions, assignments, attempts, progress] = await Promise.all([
+  const [modules, versions, assignments, attempts, progress, past] = await Promise.all([
     fetchAll<Module>((a, b) => supabase.from('modules').select('*').eq('status', 'published').range(a, b)),
     fetchAll<Version>((a, b) => supabase.from('module_versions').select('*').eq('is_current', true).range(a, b)),
     fetchAll<Assignment>((a, b) => supabase.from('assignments').select('*').eq('staff_id', me.id).range(a, b)),
     fetchAll<Attempt>((a, b) => supabase.from('attempts').select(ATTEMPT_COLS).eq('staff_id', me.id).eq('status', 'submitted').range(a, b)),
     fetchAll<ReadProgress>((a, b) => supabase.from('read_progress').select('*').eq('staff_id', me.id).range(a, b)),
+    fetchAll<PastTraining>((a, b) => supabase.from('past_training').select('*').eq('staff_id', me.id).order('completed_on').range(a, b)).catch(() => [] as PastTraining[]),
   ]);
   const mods = num(modules, ['duration_hours']);
   const atts = num(attempts, ['hours']);
-  return { me, modules: mods, versions, assignments, attempts: atts, progress, ledger: new Ledger(mods, assignments, atts, [me]) };
+  const pst = num(past, ['hours']);
+  return { me, modules: mods, versions, assignments, attempts: atts, progress, past: pst, ledger: new Ledger(mods, assignments, atts, [me], pst) };
 }
