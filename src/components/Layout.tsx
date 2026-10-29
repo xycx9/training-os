@@ -56,6 +56,7 @@ export function AdminLayout() {
           <NavLink to="/admin/staff"><Icon d="M16 19v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 17.5V19M10 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6M20 19v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 5.15a3 3 0 0 1 0 5.7" />Staff</NavLink>
           <NavLink to="/admin/records"><Icon d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" />Training records</NavLink>
           <NavLink to="/admin/sessions"><Icon d="M4 6h16v14H4zM4 10h16M8 3v5M16 3v5M8 14h3" />Past sessions</NavLink>
+          <NavLink to="/admin/ste"><Icon d="M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.7 5 3.2 5 1.4 5 3.3-2.2 3-5 3-5-1.1-5-3" />Training expenditure</NavLink>
           <NavLink to="/admin/company"><Icon d="M4 21V5l8-2v18M12 7h8v14M7 8h2M7 12h2M7 16h2M15 11h2M15 15h2M2 21h20" />Company profile</NavLink>
         </nav>
         <main className="work"><AdminBody /></main>

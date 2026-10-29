@@ -6,7 +6,6 @@ import { useAuth } from '../../lib/auth';
 import type { Profile } from '../../lib/types';
 import { useToast } from '../../components/Toast';
 
-export const JOB_ROLES = ['Teller', 'Compliance officer', 'Management'];
 
 interface NewStaff { full_name: string; username: string; role: 'staff' | 'admin'; job_role: string; joined_on: string; password: string; mods: string[]; due_days: number }
 
@@ -54,7 +53,7 @@ export default function Staff() {
   };
   const delCount = delFor ? recordCount(delFor.id) : 0;
 
-  const startAdd = () => { setErr(null); setCreds(null); setN({ full_name: '', username: '', role: 'staff', job_role: 'Teller', joined_on: todayMY(), password: tempPassword(), mods: published.map((m) => m.id), due_days: 14 }); };
+  const startAdd = () => { setErr(null); setCreds(null); setN({ full_name: '', username: '', role: 'staff', job_role: data.jobRoles.find((r) => r.active && r.bnm_level === 'support')?.name ?? data.jobRoles.find((r) => r.active)?.name ?? 'Teller', joined_on: todayMY(), password: tempPassword(), mods: published.map((m) => m.id), due_days: 14 }); };
   const suggestUser = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 32);
 
   const create = async () => {
@@ -93,7 +92,7 @@ export default function Staff() {
             <label className="field" htmlFor="ns-type">Account type
               <select id="ns-type" value={n.role} onChange={(e) => setN({ ...n, role: e.target.value as 'staff' | 'admin' })}><option value="staff">Staff (takes training)</option><option value="admin">Admin (manages training)</option></select></label>
             {n.role === 'staff' && <label className="field" htmlFor="ns-role">Job role
-              <select id="ns-role" value={n.job_role} onChange={(e) => setN({ ...n, job_role: e.target.value })}>{JOB_ROLES.map((r) => <option key={r}>{r}</option>)}</select></label>}
+              <select id="ns-role" value={n.job_role} onChange={(e) => setN({ ...n, job_role: e.target.value })}>{data.jobRoles.filter((r) => r.active).map((r) => <option key={r.name}>{r.name}</option>)}</select></label>}
             <label className="field" htmlFor="ns-joined">Joined on<input id="ns-joined" type="date" value={n.joined_on} onChange={(e) => setN({ ...n, joined_on: e.target.value })} /></label>
             <label className="field" htmlFor="ns-pass">Temporary password
               <span className="row" style={{ flexWrap: 'nowrap' }}><input id="ns-pass" className="mono" style={{ flex: 1 }} value={n.password} onChange={(e) => setN({ ...n, password: e.target.value })} />
@@ -229,7 +228,8 @@ function ResetPassword({ p, onDone, onCancel }: { p: Profile; onDone: (pw: strin
 
 /** Change a person's name, username, job role or date joined. Their records stay attached to them. */
 function EditProfile({ p, self, onDone }: { p: Profile; self: boolean; onDone: () => void }) {
-  const { reload } = useAdmin();
+  const { data, reload } = useAdmin();
+  const roles = data?.jobRoles ?? [];
   const { reloadProfile } = useAuth();
   const toast = useToast();
   const [f, setF] = useState({ full_name: p.full_name, username: p.username, job_role: p.job_role, joined_on: p.joined_on });
@@ -262,7 +262,10 @@ function EditProfile({ p, self, onDone }: { p: Profile; self: boolean; onDone: (
         <label className="field" htmlFor="ep-user">Username
           <input id="ep-user" className="mono" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} /></label>
         {p.role === 'staff' && <label className="field" htmlFor="ep-role">Job role
-          <select id="ep-role" value={f.job_role} onChange={(e) => setF({ ...f, job_role: e.target.value })}>{JOB_ROLES.map((r) => <option key={r}>{r}</option>)}</select></label>}
+          <select id="ep-role" value={f.job_role} onChange={(e) => setF({ ...f, job_role: e.target.value })}>
+            {roles.filter((r) => r.active || r.name === p.job_role).map((r) => <option key={r.name} value={r.name}>{r.name}{r.active ? '' : ' (retired)'}</option>)}
+            {!roles.some((r) => r.name === p.job_role) && <option value={p.job_role}>{p.job_role}</option>}
+          </select></label>}
         <label className="field" htmlFor="ep-joined">Date joined<input id="ep-joined" type="date" value={f.joined_on} onChange={(e) => setF({ ...f, joined_on: e.target.value })} /></label>
       </div>
       {userChanged && <div className="note">{self ? 'You' : p.full_name.split(' ')[0]} will sign in with <b className="mono">{f.username.trim().toLowerCase() || '…'}</b> from now on. The password stays the same.{self ? '' : ' Let them know before they next sign in.'}</div>}

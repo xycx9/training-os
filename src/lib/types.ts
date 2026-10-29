@@ -147,3 +147,60 @@ export interface SessionFile {
   size_bytes: number | null;
   uploaded_at: string;
 }
+
+/** A job role on the admin's list, with the BNM level used in the STE report. */
+export type BnmLevel = 'senior' | 'middle' | 'support';
+export interface JobRole { name: string; bnm_level: BnmLevel; active: boolean; sort: number }
+
+/** Staff Training Expenditure: one workbook per financial year. */
+export type SteCategory = 'a' | 'b_i' | 'b_ii' | 'b_iii' | 'b_iv' | 'b_v';
+export type Participation = Partial<Record<BnmLevel, { soft?: number; technical?: number; leadership?: number }>>;
+export interface SteYear {
+  id: string;
+  fy_end: string;
+  gross_wages_prev: number;
+  carry_forward: number;
+  carry_forward_ref: string | null;
+  historical: boolean;
+  status: 'draft' | 'submitted';
+  submitted_on: string | null;
+  fibox_ref: string | null;
+  prepared_name: string | null;
+  prepared_title: string | null;
+  prepared_contact: string | null;
+  report_date: string | null;
+  participation: Participation;
+  notes: string | null;
+  created_at: string;
+}
+export interface SteExpense {
+  id: string;
+  year_id: string;
+  spent_on: string;
+  category: SteCategory;
+  description: string;
+  amount: number;
+  payee: string | null;
+  payment_ref: string | null;
+  session_id: string | null;
+  module_id: string | null;
+  trainer_id: string | null;
+  doc_path: string | null;
+  doc_name: string | null;
+  created_at: string;
+}
+export interface SteActivity { name: string; frequency: string; sessions: number; hours: number; justification: string }
+export interface SteTrainer {
+  id: string;
+  year_id: string;
+  staff_id: string | null;
+  trainer_name: string;
+  trainer_role: string | null;
+  monthly_salary: number;
+  monthly_allowances: number;
+  monthly_epf: number;
+  hours_per_month: number;
+  activities: SteActivity[];
+  session_ids: string[];
+}
+export interface SteLog { id: number; year_id: string; action: string; note: string | null; by_user: string | null; at: string }

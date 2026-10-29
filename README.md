@@ -17,7 +17,9 @@ Every attempt is kept as evidence for BNM examinations and audits, including fai
 - Reading materials: attach documents (PDF, Word, Excel, PowerPoint) to a module for staff to download. Copied to each new version.
 - Past sessions: record a classroom session held before or outside the system, with its slides, evidence (attendance sheet, question paper, answer key), and each attendee's result and score.
 - Staff profiles: edit name, username, job role and date joined. Records stay attached.
-- Company profile: letterhead details, logo and signatory for official training records.
+- Company profile: letterhead details, logo and signatory for official training records, and the list of job roles with their BNM level.
+- Training expenditure (STE): one workbook per financial year under BNM/RH/PD 031-6. Gross wages and the 2% requirement, expenses by S 7.2 category with receipts, an in-house trainer worksheet backed by recorded sessions, the BNM return as PDF or Excel, and locking once submitted.
+- Former staff are hidden everywhere; tick "Include former staff" on Training records to show their records.
 
 **Staff**
 - My training: what is due, overdue, done, and when the next refresher is.
@@ -86,6 +88,10 @@ In **SQL Editor → New query**, paste the whole of `supabase/migrations/0003_ro
 ### Step 4d. Reading materials, past sessions and company profile (run once)
 
 In **SQL Editor → New query**, paste the whole of `supabase/migrations/0004_materials_and_sessions.sql` and click **Run**. This adds downloadable reading materials per module, recorded past sessions, the Company profile used on letterheads, and reference numbers for official training records. Then fill in **Company profile** in the app.
+
+### Step 4e. Job roles and training expenditure (run once)
+
+In **SQL Editor → New query**, paste the whole of `supabase/migrations/0005_roles_and_ste.sql` and click **Run**. This adds the editable list of job roles (**Company profile → Job roles**) and the **Training expenditure** section for the BNM STE report. Then redeploy the `admin-users` function with the updated `supabase/functions/admin-users/index.ts`.
 
 ### Step 5. Create your own admin account
 

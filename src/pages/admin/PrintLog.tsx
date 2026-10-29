@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { loadAdmin, type AdminData } from '../../lib/data';
 import { fmt, fmtH, Ledger, resultLabel } from '../../lib/logic';
 import { useCompany } from '../../lib/company';
-import { completedCount, filtered, periodLabel, readFilter, sumH } from './Records';
+import { completedCount, filtered, periodLabel, readFilter, sumH, visibleStaff } from './Records';
 
 /** A clean page for printing or saving as PDF from the browser. */
 export default function PrintLog() {
@@ -19,7 +19,7 @@ export default function PrintLog() {
   if (err) return <div className="printpage"><div className="err">{err}</div></div>;
   if (!data || !ledger) return <div className="printpage muted">Preparing the training log…</div>;
 
-  const people = ledger.staff().filter((s) => !staffId || s.id === staffId);
+  const people = visibleStaff(ledger, f).filter((s) => !staffId || s.id === staffId);
   const log = people.flatMap((s) => filtered(ledger, s.id, f).map((a) => ({ ...a, who: s })))
     .sort((a, b) => (a.taken_on === b.taken_on ? (a.submitted_at < b.submitted_at ? -1 : 1) : a.taken_on < b.taken_on ? -1 : 1));
   const recorded = log.filter((a) => a.manual).length;

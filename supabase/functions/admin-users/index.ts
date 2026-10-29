@@ -22,6 +22,16 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** The job role if it is on the admin's list of active roles (falls back to the original three before update 0005). */
+// deno-lint-ignore no-explicit-any
+async function validRole(admin: any, value: unknown): Promise<string | null> {
+  const name = String(value ?? '').trim();
+  if (!name) return null;
+  const { data, error } = await admin.from('job_roles').select('name').eq('name', name).eq('active', true).maybeSingle();
+  if (error) return ['Teller', 'Compliance officer', 'Management'].includes(name) ? name : null;
+  return data ? data.name : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Use POST' }, 405);
@@ -55,7 +65,8 @@ Deno.serve(async (req) => {
       const fullName = String(body.full_name ?? '').trim();
       const password = String(body.password ?? '');
       const role = body.role === 'admin' ? 'admin' : 'staff';
-      const jobRole = ['Teller', 'Compliance officer', 'Management'].includes(String(body.job_role)) ? String(body.job_role) : 'Teller';
+      const jobRole = await validRole(admin, body.job_role);
+      if (role === 'staff' && !jobRole) return json({ error: 'Choose a job role from the list.' }, 400);
       const joinedOn = /^\d{4}-\d{2}-\d{2}$/.test(String(body.joined_on ?? '')) ? String(body.joined_on) : todayMY();
       const moduleIds = Array.isArray(body.module_ids) ? (body.module_ids as string[]) : [];
       const dueDays = Math.max(1, Math.min(365, Number(body.due_days) || 14));
@@ -73,7 +84,7 @@ Deno.serve(async (req) => {
       if (cErr || !created.user) return json({ error: cErr?.message ?? 'Could not create the account.' }, 400);
 
       const { error: pErr } = await admin.from('profiles').insert({
-        id: created.user.id, username, full_name: fullName, role, job_role: jobRole, joined_on: joinedOn, must_change_password: true,
+        id: created.user.id, username, full_name: fullName, role, job_role: jobRole ?? 'Management', joined_on: joinedOn, must_change_password: true,
       });
       if (pErr) {
         await admin.auth.admin.deleteUser(created.user.id);
@@ -93,7 +104,7 @@ Deno.serve(async (req) => {
 
     if (action === 'update_profile') {
       const id = String(body.user_id ?? '');
-      const { data: cur } = await admin.from('profiles').select('id, username, role').eq('id', id).maybeSingle();
+      const { data: cur } = await admin.from('profiles').select('id, username, role, job_role').eq('id', id).maybeSingle();
       if (!cur) return json({ error: 'Account not found.' }, 404);
       const username = String(body.username ?? '').trim().toLowerCase();
       const fullName = String(body.full_name ?? '').trim();
@@ -102,7 +113,12 @@ Deno.serve(async (req) => {
       if (!fullName) return json({ error: 'Enter the full name.' }, 400);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(joinedOn)) return json({ error: 'Enter the date joined.' }, 400);
       const patch: Record<string, unknown> = { full_name: fullName, joined_on: joinedOn };
-      if (cur.role === 'staff') patch.job_role = ['Teller', 'Compliance officer', 'Management'].includes(String(body.job_role)) ? String(body.job_role) : 'Teller';
+      if (cur.role === 'staff' || body.job_role) {
+        // A retired role can be kept by people who already have it.
+        const jr = String(body.job_role ?? '') === cur.job_role ? cur.job_role : await validRole(admin, body.job_role);
+        if (!jr) return json({ error: 'Choose a job role from the list.' }, 400);
+        patch.job_role = jr;
+      }
       if (username !== cur.username) {
         const { data: taken } = await admin.from('profiles').select('id').eq('username', username).neq('id', id).maybeSingle();
         if (taken) return json({ error: `The username "${username}" is already taken.` }, 409);

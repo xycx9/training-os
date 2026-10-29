@@ -31,8 +31,10 @@ export default function PastTrainingForm({ onClose }: { onClose: () => void }) {
   const [csv, setCsv] = useState('');
   const [errs, setErrs] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [former, setFormer] = useState(false);
   if (!data || !ledger || !profile) return null;
   const staff = ledger.staff();
+  const pick = staff.filter((s) => s.active || former || s.id === e.staff_id);
   const today = todayMY();
 
   const row = (x: Entry) => ({
@@ -117,8 +119,9 @@ export default function PastTrainingForm({ onClose }: { onClose: () => void }) {
           <div className="grid-fields">
             <label className="field" htmlFor="pt-staff">Staff member
               <select id="pt-staff" value={e.staff_id} onChange={(x) => setE({ ...e, staff_id: x.target.value })}>
-                <option value="">Choose…</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.active ? '' : ' (deactivated)'}</option>)}
-              </select></label>
+                <option value="">Choose…</option>{pick.map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.active ? '' : ' (former staff)'}</option>)}
+              </select>
+              {staff.some((s) => !s.active) && <span className="check small" style={{ minHeight: 0, fontWeight: 400 }}><input type="checkbox" checked={former} onChange={(x) => setFormer(x.target.checked)} aria-label="Include former staff" /> Include former staff</span>}</label>
             <label className="field" htmlFor="pt-title" style={{ gridColumn: 'span 2' }}>Training
               <input id="pt-title" value={e.title} onChange={(x) => setE({ ...e, title: x.target.value })} placeholder="e.g. AML/CFT annual briefing" list="pt-titles" />
               <datalist id="pt-titles">{[...new Set(data.modules.map((m) => m.title).concat(data.past.map((p) => p.title)))].map((t) => <option key={t} value={t} />)}</datalist></label>

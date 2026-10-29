@@ -250,7 +250,7 @@ function AssignTab({ m, busy, run }: { m: Module; busy: boolean; run: (fn: () =>
 function ResultsTab({ m }: { m: Module }) {
   const { ledger } = useAdmin();
   if (!ledger) return null;
-  const rows = ledger.staff().filter((s) => ledger.asg(s.id, m.id) || ledger.atts(s.id, m.id).length);
+  const rows = ledger.staff().filter((s) => s.active && (ledger.asg(s.id, m.id) || ledger.atts(s.id, m.id).length));
   if (!rows.length) return <div className="panel pad muted">No results yet.</div>;
   return (
     <div className="panel tablebox">

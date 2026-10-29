@@ -47,7 +47,7 @@ export function checkFile(f: File, exts: string[], maxMb: number): string | null
 export interface Uploaded { file_path: string; file_name: string; size_bytes: number }
 
 /** Uploads one file under a random name in the folder given and returns where it went. */
-export async function uploadFile(bucket: 'readings' | 'evidence', folder: string, f: File): Promise<Uploaded> {
+export async function uploadFile(bucket: 'readings' | 'evidence' | 'ste-docs', folder: string, f: File): Promise<Uploaded> {
   const e = extOf(f.name);
   const file_path = `${folder}/${crypto.randomUUID()}.${e}`;
   const { error } = await supabase.storage.from(bucket).upload(file_path, f, { contentType: MIME[e] || f.type || undefined });

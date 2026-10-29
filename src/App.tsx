@@ -20,6 +20,10 @@ import Quiz from './pages/staff/Quiz';
 import MyRecords, { MyRecordPrint } from './pages/staff/MyRecords';
 import OfficialRecord from './pages/staff/Official';
 import Company from './pages/admin/Company';
+import SteYears from './pages/admin/ste/Years';
+import SteWorkbook from './pages/admin/ste/Workbook';
+import SteTrainerPage from './pages/admin/ste/Trainer';
+import SteReport from './pages/admin/ste/Report';
 
 function Splash() {
   return <div className="center"><p className="muted">Loading…</p></div>;
@@ -60,6 +64,10 @@ export default function App() {
         <Route path="sessions/new" element={<SessionForm />} />
         <Route path="sessions/:id" element={<SessionDetail />} />
         <Route path="company" element={<Company />} />
+        <Route path="ste" element={<SteYears />} />
+        <Route path="ste/:id" element={<SteWorkbook />} />
+        <Route path="ste/:id/trainer" element={<SteTrainerPage />} />
+        <Route path="ste/:id/report" element={<SteReport />} />
       </Route>
       <Route path="/records/print" element={<Gate role="staff"><MyRecordPrint /></Gate>} />
       <Route path="/records/official" element={<Gate role="staff"><OfficialRecord /></Gate>} />

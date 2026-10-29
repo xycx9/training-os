@@ -7,8 +7,10 @@ import { useToast } from '../../components/Toast';
 import PastTrainingForm from './PastTrainingForm';
 import type { Profile } from '../../lib/types';
 
-export interface Filter { year: string; part: string; from: string; to: string; mod: string; staff: string }
-export const blankFilter = (): Filter => ({ year: todayMY().slice(0, 4), part: 'full', from: '', to: '', mod: 'all', staff: 'all' });
+export interface Filter { year: string; part: string; from: string; to: string; mod: string; staff: string; former: string }
+export const blankFilter = (): Filter => ({ year: todayMY().slice(0, 4), part: 'full', from: '', to: '', mod: 'all', staff: 'all', former: '0' });
+/** Staff shown in records: active people only, unless "Include former staff" is ticked. */
+export const visibleStaff = (ledger: Ledger, f: Filter) => ledger.staff().filter((s) => s.active || f.former === '1');
 
 /** Every year that has a record, plus the current year, newest first. */
 export function yearOpts(ledger: Ledger): string[] {
@@ -44,7 +46,7 @@ export const sourceText = (a: HistRow, nameOf: (id?: string | null) => string) =
   a.manual ? `Recorded by ${nameOf(a.entered_by)} on ${fmt((a.entered_at || '').slice(0, 10))}` : 'System assessment';
 export function readFilter(p: URLSearchParams): Filter {
   const d = blankFilter();
-  return { year: p.get('year') || d.year, part: p.get('part') || d.part, from: p.get('from') || '', to: p.get('to') || '', mod: p.get('mod') || 'all', staff: p.get('staff') || 'all' };
+  return { year: p.get('year') || d.year, part: p.get('part') || d.part, from: p.get('from') || '', to: p.get('to') || '', mod: p.get('mod') || 'all', staff: p.get('staff') || 'all', former: p.get('former') === '1' ? '1' : '0' };
 }
 export const sumH = (list: HistRow[]) => list.reduce((t, a) => t + (Number(a.hours) || 0), 0);
 export const toQuery = (f: Filter, extra: Record<string, string> = {}) => new URLSearchParams({ ...f, ...extra }).toString();
@@ -68,7 +70,8 @@ export default function Records() {
     toast('Record removed'); await reload();
   };
 
-  const allStaff = ledger.staff();
+  const allStaff = visibleStaff(ledger, f);
+  const formerCount = ledger.staff().filter((s) => !s.active).length;
   const staff = f.staff === 'all' ? allStaff : allStaff.filter((s) => s.id === f.staff);
   const sel: Profile | undefined = staff.find((s) => s.id === selId) ?? staff[0];
   const isDefault = JSON.stringify(f) === JSON.stringify(blankFilter());
@@ -118,8 +121,13 @@ export default function Records() {
           <select id="rec-mod" value={f.mod} onChange={(e) => setF({ ...f, mod: e.target.value })}><option value="all">All training</option>{data.modules.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}<option value="past">Recorded past training</option></select></label>
         <label className="field" htmlFor="rec-staff">Staff
           <select id="rec-staff" value={f.staff} onChange={(e) => { setF({ ...f, staff: e.target.value }); setSelId(e.target.value === 'all' ? null : e.target.value); }}>
-            <option value="all">All staff</option>{allStaff.map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.active ? '' : ' (deactivated)'}</option>)}
+            <option value="all">All staff</option>{allStaff.map((s) => <option key={s.id} value={s.id}>{s.full_name}{s.active ? '' : ' (former staff)'}</option>)}
           </select></label>
+        {formerCount > 0 && <label className="check small" htmlFor="rec-former" style={{ minHeight: 44, fontWeight: 600 }}>
+          <input id="rec-former" type="checkbox" checked={f.former === '1'} onChange={(e) => {
+            const on = e.target.checked; const gone = !on && f.staff !== 'all' && !ledger.staff().find((s) => s.id === f.staff)?.active;
+            setF({ ...f, former: on ? '1' : '0', staff: gone ? 'all' : f.staff }); if (gone) setSelId(null);
+          }} /> Include former staff ({formerCount})</label>}
         {!isDefault && <button type="button" className="btn" onClick={() => { setF(blankFilter()); setSelId(null); }}>Reset</button>}
       </div>
       <div className="row small">

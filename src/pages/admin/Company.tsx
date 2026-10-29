@@ -4,13 +4,29 @@ import { refreshCompany, useCompany, type CompanyProfile } from '../../lib/compa
 import { errText, supabase } from '../../lib/supabase';
 import { useToast } from '../../components/Toast';
 import { AddFiles } from '../../components/Files';
-import { Letterhead } from '../staff/Official';
+import { Letterhead as LetterheadView } from '../staff/Official';
+import JobRoles from './JobRoles';
 
 type Form = Omit<CompanyProfile, 'updated_at' | 'updated_by'>;
 const keys: (keyof Form)[] = ['name', 'reg_no', 'address', 'phone', 'email', 'signatory_name', 'signatory_title'];
 
-/** Letterhead details and signatory used on printed records. */
+/** Company profile: letterhead and signatory, and the list of job roles. */
 export default function Company() {
+  const [tab, setTab] = useState<'letterhead' | 'roles'>(() => (window.location.hash === '#roles' ? 'roles' : 'letterhead'));
+  return (
+    <>
+      <div><h1>Company profile</h1></div>
+      <div className="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'letterhead'} onClick={() => setTab('letterhead')}>Letterhead and signatory</button>
+        <button type="button" role="tab" aria-selected={tab === 'roles'} onClick={() => setTab('roles')}>Job roles</button>
+      </div>
+      {tab === 'letterhead' ? <Letterhead /> : <JobRoles />}
+    </>
+  );
+}
+
+/** Letterhead details and signatory used on printed records. */
+function Letterhead() {
   const { company, logoUrl, loaded } = useCompany();
   const { profile } = useAuth();
   const toast = useToast();
@@ -58,8 +74,7 @@ export default function Company() {
   return (
     <>
       <div>
-        <h1>Company profile</h1>
-        <p className="muted small" style={{ marginTop: 4, maxWidth: 720 }}>These details appear on the letterhead of official training records that staff print, for example for CPD/CPE claims. The company name also appears at the top of every page and on printed training logs.</p>
+        <p className="muted small" style={{ maxWidth: 720 }}>These details appear on the letterhead of official training records that staff print, for example for CPD/CPE claims. The company name also appears at the top of every page and on printed training logs.</p>
       </div>
 
       <section className="panel pad stack">
@@ -96,7 +111,7 @@ export default function Company() {
 
       <section className="stack" style={{ gap: 8 }}>
         <h2>Preview</h2>
-        <div className="desk"><div className="sheet"><Letterhead company={{ ...company, ...f }} logoUrl={logoUrl} /><p className="small muted" style={{ marginTop: 18 }}>The rest of the official record follows here.</p></div></div>
+        <div className="desk"><div className="sheet"><LetterheadView company={{ ...company, ...f }} logoUrl={logoUrl} /><p className="small muted" style={{ marginTop: 18 }}>The rest of the official record follows here.</p></div></div>
       </section>
     </>
   );

@@ -32,6 +32,7 @@ export default function SessionForm() {
   const [csv, setCsv] = useState('');
   const [errs, setErrs] = useState<string[]>([]);
   const [busy, setBusy] = useState('');
+  const [former, setFormer] = useState(false);
   if (!data || !ledger) return null;
 
   const staff = ledger.staff();
@@ -204,7 +205,7 @@ export default function SessionForm() {
                     <tr key={a.key}>
                       <td><select aria-label="Staff member" value={a.staff_id} onChange={(e) => setAtt(a.key, { staff_id: e.target.value })} style={{ width: '100%' }}>
                         <option value="">Choose…</option>
-                        {staff.map((s) => <option key={s.id} value={s.id} disabled={s.id !== a.staff_id && atts.some((x) => x.staff_id === s.id)}>{s.full_name} · {s.job_role}{s.active ? '' : ' (deactivated)'}</option>)}
+                        {staff.filter((s) => s.active || former || s.id === a.staff_id).map((s) => <option key={s.id} value={s.id} disabled={s.id !== a.staff_id && atts.some((x) => x.staff_id === s.id)}>{s.full_name} · {s.job_role}{s.active ? '' : ' (former staff)'}</option>)}
                       </select></td>
                       <td>{assessed ? (
                         <select aria-label="Result" value={a.result} onChange={(e) => setAtt(a.key, { result: e.target.value as Result })}>
@@ -224,6 +225,7 @@ export default function SessionForm() {
             <div className="pad row" style={{ paddingTop: 12 }}>
               <button type="button" className="btn" onClick={() => setAtts([...atts, newAtt('', assessed)])}>+ Add attendee</button>
               <button type="button" className="btn" onClick={addAll}>Add all active staff ({active.length})</button>
+              {staff.some((s) => !s.active) && <label className="check small" htmlFor="ss-former"><input id="ss-former" type="checkbox" checked={former} onChange={(e) => setFormer(e.target.checked)} /> Include former staff in the list (for sessions they attended before leaving)</label>}
             </div>
           </>
         ) : (
